@@ -49,10 +49,9 @@ func (t *TrailingStop) Update(current float64) bool {
 
 	if t.side == model.SideTypeBuy {
 		return t.updateLong(current)
-	} else {
-		return t.updateShort(current)
 	}
 
+	return t.updateShort(current)
 }
 
 func (t *TrailingStop) updateLong(current float64) bool {
