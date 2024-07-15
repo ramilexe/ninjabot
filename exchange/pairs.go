@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/adshao/go-binance/v2"
 	"github.com/adshao/go-binance/v2/futures"
@@ -20,6 +21,16 @@ var (
 	//go:embed pairs.json
 	pairs             []byte
 	pairAssetQuoteMap = make(map[string]AssetQuote)
+	quoteAssets       = []string{
+		"USDT",
+		"BTC",
+		"BNB",
+		"ETH",
+		"USDC",
+		"FDUSD",
+		"FDUSD",
+		"BNFCR",
+	}
 )
 
 func init() {
@@ -30,8 +41,14 @@ func init() {
 }
 
 func SplitAssetQuote(pair string) (asset string, quote string) {
-	data := pairAssetQuoteMap[pair]
-	return data.Asset, data.Quote
+	for _, quoteAsset := range quoteAssets {
+		if strings.HasSuffix(pair, quoteAsset) {
+			asset := strings.TrimSuffix(pair, quoteAsset)
+			return asset, quoteAsset
+		}
+	}
+
+	panic("unable to parse " + pair)
 }
 
 func updatePairsFile() error {
