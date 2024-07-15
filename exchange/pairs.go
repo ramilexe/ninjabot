@@ -23,7 +23,13 @@ var (
 	pairAssetQuoteMap = make(map[string]AssetQuote)
 	quoteAssets       = []string{
 		"USDT",
+		"BTC",
+		"BNB",
+		"ETH",
 		"USDC",
+		"FDUSD",
+		"FDUSD",
+		"BNFCR",
 	}
 )
 

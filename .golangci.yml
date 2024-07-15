@@ -1,6 +1,6 @@
 run:
   timeout: 1m
-  skip-dirs:
+  exclude-dirs:
     - example
     - pkg/ent
 
