@@ -2,6 +2,7 @@ package exchange
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/adshao/go-binance/v2/common"
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/jpillora/backoff"
+	"github.com/schollz/progressbar/v3"
 
 	"github.com/rodrigo-brito/ninjabot/model"
 	"github.com/rodrigo-brito/ninjabot/tools/log"
@@ -22,7 +24,8 @@ var (
 	MarginTypeIsolated MarginType = "ISOLATED"
 	MarginTypeCrossed  MarginType = "CROSSED"
 
-	ErrNoNeedChangeMarginType int64 = -4046
+	ErrNoNeedChangeMarginType   int64 = -4046
+	ErrNoNeedChangePositionSide int64 = -4059
 )
 
 type PairOption struct {
@@ -96,29 +99,64 @@ func NewBinanceFuture(ctx context.Context, options ...BinanceFutureOption) (*Bin
 		return nil, fmt.Errorf("binance ping fail: %w", err)
 	}
 
+	account, err := exchange.client.NewGetAccountService().Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	positions := make(map[string]*futures.AccountPosition)
+	for _, p := range account.Positions {
+		positions[p.Symbol] = p
+	}
+
 	results, err := exchange.client.NewExchangeInfoService().Do(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	bar := progressbar.Default(int64(len(exchange.PairOptions)), "Setting Leverage...")
 	// Set leverage and margin type
 	for _, option := range exchange.PairOptions {
-		_, err = exchange.client.NewChangeLeverageService().Symbol(option.Pair).Leverage(option.Leverage).Do(ctx)
+		if _, ok := positions[option.Pair]; !ok {
+			log.Warnf("no position info in account for pair %s", option.Pair)
+			continue
+		}
+		accountLeverage, err := strconv.ParseInt(positions[option.Pair].Leverage, 10, 64)
 		if err != nil {
 			return nil, err
 		}
 
-		err = exchange.client.NewChangeMarginTypeService().Symbol(option.Pair).MarginType(option.MarginType).Do(ctx)
-		if err != nil {
-			if apiError, ok := err.(*common.APIError); !ok || apiError.Code != ErrNoNeedChangeMarginType {
+		if int(accountLeverage) != option.Leverage {
+			_, err = exchange.client.NewChangeLeverageService().Symbol(option.Pair).Leverage(option.Leverage).Do(ctx)
+			if err != nil {
 				return nil, err
 			}
 		}
+
+		var isolated bool
+		if option.MarginType == futures.MarginTypeIsolated {
+			isolated = true
+		}
+
+		if positions[option.Pair].Isolated != isolated {
+			err = exchange.client.NewChangeMarginTypeService().Symbol(option.Pair).MarginType(option.MarginType).Do(ctx)
+			if err != nil {
+				var apiError *common.APIError
+				if !errors.As(err, &apiError) || apiError.Code != ErrNoNeedChangeMarginType {
+					return nil, err
+				}
+			}
+		}
+
+		_ = bar.Add(1)
 	}
 
 	err = exchange.client.NewChangePositionModeService().DualSide(exchange.HedgeMode).Do(ctx)
 	if err != nil {
-		return nil, err
+		var apiError *common.APIError
+		if !errors.As(err, &apiError) || apiError.Code != ErrNoNeedChangePositionSide {
+			return nil, err
+		}
 	}
 
 	// Initialize with orders precision and assets limits
