@@ -41,6 +41,8 @@ type BinanceFuture struct {
 	APIKey    string
 	APISecret string
 
+	HedgeMode bool
+
 	MetadataFetchers []MetadataFetchers
 	PairOptions      []PairOption
 }
@@ -70,6 +72,13 @@ func WithBinanceFutureLeverage(pair string, leverage int, marginType MarginType)
 			Leverage:   leverage,
 			MarginType: marginType,
 		})
+	}
+}
+
+// WithHedgeMode w
+func WithHedgeMode(mode bool) BinanceFutureOption {
+	return func(b *BinanceFuture) {
+		b.HedgeMode = mode
 	}
 }
 
@@ -105,6 +114,11 @@ func NewBinanceFuture(ctx context.Context, options ...BinanceFutureOption) (*Bin
 				return nil, err
 			}
 		}
+	}
+
+	err = exchange.client.NewChangePositionModeService().DualSide(exchange.HedgeMode).Do(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Initialize with orders precision and assets limits
