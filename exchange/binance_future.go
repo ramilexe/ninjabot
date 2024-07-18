@@ -246,15 +246,16 @@ func (b *BinanceFuture) CreateOrderStop(pair string, quantity float64, limit flo
 	quantity, _ = strconv.ParseFloat(order.OrigQuantity, 64)
 
 	return model.Order{
-		ExchangeID: order.OrderID,
-		CreatedAt:  time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		UpdatedAt:  time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		Pair:       pair,
-		Side:       model.SideType(order.Side),
-		Type:       model.OrderType(order.Type),
-		Status:     model.OrderStatusType(order.Status),
-		Price:      price,
-		Quantity:   quantity,
+		ExchangeID:   order.OrderID,
+		CreatedAt:    time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		UpdatedAt:    time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		Pair:         pair,
+		Side:         model.SideType(order.Side),
+		PositionSide: model.PositionSideType(order.PositionSide),
+		Type:         model.OrderType(order.Type),
+		Status:       model.OrderStatusType(order.Status),
+		Price:        price,
+		Quantity:     quantity,
 	}, nil
 }
 
@@ -303,15 +304,64 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, pair string,
 	}
 
 	return model.Order{
-		ExchangeID: order.OrderID,
-		CreatedAt:  time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		UpdatedAt:  time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		Pair:       pair,
-		Side:       model.SideType(order.Side),
-		Type:       model.OrderType(order.Type),
-		Status:     model.OrderStatusType(order.Status),
-		Price:      price,
-		Quantity:   quantity,
+		ExchangeID:   order.OrderID,
+		CreatedAt:    time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		UpdatedAt:    time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		Pair:         pair,
+		Side:         model.SideType(order.Side),
+		PositionSide: model.PositionSideType(order.PositionSide),
+		Type:         model.OrderType(order.Type),
+		Status:       model.OrderStatusType(order.Status),
+		Price:        price,
+		Quantity:     quantity,
+	}, nil
+}
+
+func (b *BinanceFuture) CloseOrderMarket(side model.SideType, pair string) (model.Order, error) {
+	service := b.client.NewCreateOrderService().
+		Symbol(pair).
+		Type(futures.OrderTypeMarket).
+		Side(futures.SideType(side)).
+		ClosePosition(true).
+		NewOrderResponseType(futures.NewOrderRespTypeRESULT)
+
+	if b.HedgeMode {
+		// note: here we use reverse side https://dev.binance.vision/t/enable-hedge-mode-on-futures-api/59
+		if side == model.SideTypeBuy {
+			service.PositionSide(futures.PositionSideTypeShort)
+		} else {
+			service.PositionSide(futures.PositionSideTypeLong)
+		}
+	} else {
+		service.PositionSide(futures.PositionSideTypeBoth)
+	}
+
+	order, err := service.Do(b.ctx)
+	if err != nil {
+		return model.Order{}, err
+	}
+
+	cost, err := strconv.ParseFloat(order.CumQuote, 64)
+	if err != nil {
+		return model.Order{}, err
+	}
+
+	quantity, err := strconv.ParseFloat(order.ExecutedQuantity, 64)
+	if err != nil {
+		return model.Order{}, err
+	}
+
+	return model.Order{
+		ExchangeID:   order.OrderID,
+		CreatedAt:    time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		UpdatedAt:    time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		Pair:         order.Symbol,
+		Side:         model.SideType(order.Side),
+		PositionSide: model.PositionSideType(order.PositionSide),
+		Type:         model.OrderType(order.Type),
+		Status:       model.OrderStatusType(order.Status),
+		Price:        cost / quantity,
+		Quantity:     quantity,
 	}, nil
 }
 
@@ -321,13 +371,23 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, pair string, quan
 		return model.Order{}, err
 	}
 
-	order, err := b.client.NewCreateOrderService().
+	service := b.client.NewCreateOrderService().
 		Symbol(pair).
 		Type(futures.OrderTypeMarket).
 		Side(futures.SideType(side)).
 		Quantity(b.formatQuantity(pair, quantity)).
-		NewOrderResponseType(futures.NewOrderRespTypeRESULT).
-		Do(b.ctx)
+		NewOrderResponseType(futures.NewOrderRespTypeRESULT)
+
+	if b.HedgeMode {
+		if side == model.SideTypeBuy {
+			service.PositionSide(futures.PositionSideTypeLong)
+		} else {
+			service.PositionSide(futures.PositionSideTypeShort)
+		}
+	} else {
+		service.PositionSide(futures.PositionSideTypeBoth)
+	}
+	order, err := service.Do(b.ctx)
 	if err != nil {
 		return model.Order{}, err
 	}
@@ -343,15 +403,16 @@ func (b *BinanceFuture) CreateOrderMarket(side model.SideType, pair string, quan
 	}
 
 	return model.Order{
-		ExchangeID: order.OrderID,
-		CreatedAt:  time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		UpdatedAt:  time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		Pair:       order.Symbol,
-		Side:       model.SideType(order.Side),
-		Type:       model.OrderType(order.Type),
-		Status:     model.OrderStatusType(order.Status),
-		Price:      cost / quantity,
-		Quantity:   quantity,
+		ExchangeID:   order.OrderID,
+		CreatedAt:    time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		UpdatedAt:    time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		Pair:         order.Symbol,
+		Side:         model.SideType(order.Side),
+		PositionSide: model.PositionSideType(order.PositionSide),
+		Type:         model.OrderType(order.Type),
+		Status:       model.OrderStatusType(order.Status),
+		Price:        cost / quantity,
+		Quantity:     quantity,
 	}, nil
 }
 
@@ -414,15 +475,16 @@ func newFutureOrder(order *futures.Order) model.Order {
 	}
 
 	return model.Order{
-		ExchangeID: order.OrderID,
-		Pair:       order.Symbol,
-		CreatedAt:  time.Unix(0, order.Time*int64(time.Millisecond)),
-		UpdatedAt:  time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
-		Side:       model.SideType(order.Side),
-		Type:       model.OrderType(order.Type),
-		Status:     model.OrderStatusType(order.Status),
-		Price:      price,
-		Quantity:   quantity,
+		ExchangeID:   order.OrderID,
+		Pair:         order.Symbol,
+		CreatedAt:    time.Unix(0, order.Time*int64(time.Millisecond)),
+		UpdatedAt:    time.Unix(0, order.UpdateTime*int64(time.Millisecond)),
+		Side:         model.SideType(order.Side),
+		PositionSide: model.PositionSideType(order.PositionSide),
+		Type:         model.OrderType(order.Type),
+		Status:       model.OrderStatusType(order.Status),
+		Price:        price,
+		Quantity:     quantity,
 	}
 }
 

@@ -520,6 +520,30 @@ func (c *Controller) CreateOrderMarketQuote(side model.SideType, pair string, am
 	return order, err
 }
 
+func (c *Controller) CloseOrderMarket(side model.SideType, pair string) (model.Order, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	log.Infof("[ORDER] Creating MARKET %s order for %s", side, pair)
+	order, err := c.exchange.CloseOrderMarket(side, pair)
+	if err != nil {
+		c.notifyError(err)
+		return model.Order{}, err
+	}
+
+	err = c.storage.CreateOrder(&order)
+	if err != nil {
+		c.notifyError(err)
+		return model.Order{}, err
+	}
+
+	// calculate profit
+	c.processTrade(&order)
+	go c.orderFeed.Publish(order, true)
+	log.Infof("[ORDER CREATED] %s", order)
+	return order, err
+}
+
 func (c *Controller) CreateOrderMarket(side model.SideType, pair string, size float64) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()

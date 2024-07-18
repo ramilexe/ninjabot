@@ -591,6 +591,10 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, pair string,
 	return order, nil
 }
 
+func (p *PaperWallet) CloseOrderMarket(side model.SideType, pair string) (model.Order, error) {
+	panic("not implemented")
+}
+
 func (p *PaperWallet) CreateOrderMarket(side model.SideType, pair string, size float64) (model.Order, error) {
 	p.Lock()
 	defer p.Unlock()
