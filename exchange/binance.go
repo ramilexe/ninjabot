@@ -307,7 +307,7 @@ func (b *Binance) CreateOrderLimit(side model.SideType, pair string,
 	}, nil
 }
 
-func (b *Binance) CloseOrderMarket(side model.SideType, pair string) (model.Order, error) {
+func (b *Binance) CloseOrderMarket(_ model.SideType, _ string, _ float64) (model.Order, error) {
 	panic("not implemented")
 }
 

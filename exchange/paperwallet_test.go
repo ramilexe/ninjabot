@@ -21,6 +21,19 @@ func TestPaperWallet_ValidateFunds(t *testing.T) {
 		require.Equal(t, 0.0, wallet.assets["BTC"].Lock)
 	})
 
+	t.Run("simple lock limit with hedge mode", func(t *testing.T) {
+		wallet := NewPaperWallet(context.Background(), "USDT",
+			WithPaperAsset("USDT", 100),
+			WithPaperHedgeMode(true),
+		)
+		err := wallet.validateFunds(model.SideTypeBuy, "BTCUSDT", 1, 100, false)
+		require.NoError(t, err)
+		require.Equal(t, 0.0, wallet.assets["USDT"].Free)
+		require.Equal(t, 100.0, wallet.assets["USDT"].Lock)
+		require.Equal(t, 0.0, wallet.assets["BTC"].Free)
+		require.Equal(t, 0.0, wallet.assets["BTC"].Lock)
+	})
+
 	t.Run("simple buy market", func(t *testing.T) {
 		wallet := NewPaperWallet(context.Background(), "USDT", WithPaperAsset("USDT", 100))
 		wallet.lastCandle["BTCUSDT"] = model.Candle{Pair: "BTCUSDT", Close: 100}
@@ -74,6 +87,49 @@ func TestPaperWallet_ValidateFunds(t *testing.T) {
 		require.Equal(t, 0.0, wallet.assets["USDT"].Free)
 		require.Equal(t, 0.0, wallet.assets["USDT"].Lock)
 		require.Equal(t, 1.0, wallet.assets["BTC"].Free)
+		require.Equal(t, 0.0, wallet.assets["BTC"].Lock)
+	})
+}
+
+func TestPaperWallet_ValidateFunds_Hedge(t *testing.T) {
+	t.Run("simple lock limit", func(t *testing.T) {
+		wallet := NewPaperWallet(context.Background(), "USDT",
+			WithPaperAsset("USDT", 100),
+			WithPaperHedgeMode(true),
+		)
+		err := wallet.validateFunds(model.SideTypeBuy, "BTCUSDT", 1, 100, false)
+		require.NoError(t, err)
+		require.Equal(t, 0.0, wallet.assets["USDT"].Free)
+		require.Equal(t, 100.0, wallet.assets["USDT"].Lock)
+		require.Equal(t, 0.0, wallet.assets["BTC"].Free)
+		require.Equal(t, 0.0, wallet.assets["BTC"].Lock)
+	})
+
+	t.Run("simple buy market", func(t *testing.T) {
+		wallet := NewPaperWallet(context.Background(), "USDT",
+			WithPaperAsset("USDT", 100),
+			WithPaperHedgeMode(true),
+		)
+		wallet.lastCandle["BTCUSDT"] = model.Candle{Pair: "BTCUSDT", Close: 100}
+		err := wallet.validateFunds(model.SideTypeBuy, "BTCUSDT", 1, 100, true)
+		require.NoError(t, err)
+		require.Equal(t, 0.0, wallet.assets["USDT"].Free)
+		require.Equal(t, 0.0, wallet.assets["USDT"].Lock)
+		require.Equal(t, 1.0, wallet.assets["BTC"].Free)
+		require.Equal(t, 0.0, wallet.assets["BTC"].Lock)
+	})
+
+	t.Run("simple short market", func(t *testing.T) {
+		wallet := NewPaperWallet(context.Background(), "USDT",
+			WithPaperAsset("USDT", 100),
+			WithPaperHedgeMode(true),
+		)
+		wallet.lastCandle["BTCUSDT"] = model.Candle{Pair: "BTCUSDT", Close: 100}
+		err := wallet.validateFunds(model.SideTypeSell, "BTCUSDT", 1, 100, true)
+		require.NoError(t, err)
+		require.Equal(t, 0.0, wallet.assets["USDT"].Free)
+		require.Equal(t, 0.0, wallet.assets["USDT"].Lock)
+		require.Equal(t, -1.0, wallet.assets["BTC"].Free)
 		require.Equal(t, 0.0, wallet.assets["BTC"].Lock)
 	})
 }

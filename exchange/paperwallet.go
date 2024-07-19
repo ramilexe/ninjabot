@@ -45,6 +45,7 @@ type PaperWallet struct {
 	fistCandle    map[string]model.Candle
 	assetValues   map[string][]AssetValue
 	equityValues  []AssetValue
+	hedgeMode     bool
 }
 
 func (p *PaperWallet) AssetsInfo(pair string) model.AssetInfo {
@@ -82,6 +83,12 @@ func WithPaperFee(maker, taker float64) PaperWalletOption {
 func WithDataFeed(feeder service.Feeder) PaperWalletOption {
 	return func(wallet *PaperWallet) {
 		wallet.feeder = feeder
+	}
+}
+
+func WithPaperHedgeMode(mode bool) PaperWalletOption {
+	return func(wallet *PaperWallet) {
+		wallet.hedgeMode = mode
 	}
 }
 
@@ -530,32 +537,34 @@ func (p *PaperWallet) CreateOrderOCO(side model.SideType, pair string,
 
 	groupID := p.ID()
 	limitMaker := model.Order{
-		ExchangeID: p.ID(),
-		CreatedAt:  p.lastCandle[pair].Time,
-		UpdatedAt:  p.lastCandle[pair].Time,
-		Pair:       pair,
-		Side:       side,
-		Type:       model.OrderTypeLimitMaker,
-		Status:     model.OrderStatusTypeNew,
-		Price:      price,
-		Quantity:   size,
-		GroupID:    &groupID,
-		RefPrice:   p.lastCandle[pair].Close,
+		ExchangeID:   p.ID(),
+		CreatedAt:    p.lastCandle[pair].Time,
+		UpdatedAt:    p.lastCandle[pair].Time,
+		Pair:         pair,
+		Side:         side,
+		PositionSide: model.PositionSideTypeBoth,
+		Type:         model.OrderTypeLimitMaker,
+		Status:       model.OrderStatusTypeNew,
+		Price:        price,
+		Quantity:     size,
+		GroupID:      &groupID,
+		RefPrice:     p.lastCandle[pair].Close,
 	}
 
 	stopOrder := model.Order{
-		ExchangeID: p.ID(),
-		CreatedAt:  p.lastCandle[pair].Time,
-		UpdatedAt:  p.lastCandle[pair].Time,
-		Pair:       pair,
-		Side:       side,
-		Type:       model.OrderTypeStopLoss,
-		Status:     model.OrderStatusTypeNew,
-		Price:      stopLimit,
-		Stop:       &stop,
-		Quantity:   size,
-		GroupID:    &groupID,
-		RefPrice:   p.lastCandle[pair].Close,
+		ExchangeID:   p.ID(),
+		CreatedAt:    p.lastCandle[pair].Time,
+		UpdatedAt:    p.lastCandle[pair].Time,
+		Pair:         pair,
+		Side:         side,
+		PositionSide: model.PositionSideTypeBoth,
+		Type:         model.OrderTypeStopLoss,
+		Status:       model.OrderStatusTypeNew,
+		Price:        stopLimit,
+		Stop:         &stop,
+		Quantity:     size,
+		GroupID:      &groupID,
+		RefPrice:     p.lastCandle[pair].Close,
 	}
 	p.orders = append(p.orders, limitMaker, stopOrder)
 
@@ -577,29 +586,33 @@ func (p *PaperWallet) CreateOrderLimit(side model.SideType, pair string,
 		return model.Order{}, err
 	}
 	order := model.Order{
-		ExchangeID: p.ID(),
-		CreatedAt:  p.lastCandle[pair].Time,
-		UpdatedAt:  p.lastCandle[pair].Time,
-		Pair:       pair,
-		Side:       side,
-		Type:       model.OrderTypeLimit,
-		Status:     model.OrderStatusTypeNew,
-		Price:      limit,
-		Quantity:   size,
+		ExchangeID:   p.ID(),
+		CreatedAt:    p.lastCandle[pair].Time,
+		UpdatedAt:    p.lastCandle[pair].Time,
+		Pair:         pair,
+		Side:         side,
+		PositionSide: model.PositionSideTypeBoth,
+		Type:         model.OrderTypeLimit,
+		Status:       model.OrderStatusTypeNew,
+		Price:        limit,
+		Quantity:     size,
 	}
 	p.orders = append(p.orders, order)
 	return order, nil
 }
 
-func (p *PaperWallet) CloseOrderMarket(side model.SideType, pair string) (model.Order, error) {
-	panic("not implemented")
+func (p *PaperWallet) CloseOrderMarket(side model.SideType, pair string, size float64) (model.Order, error) {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.createOrderMarket(side, pair, size, true)
 }
 
 func (p *PaperWallet) CreateOrderMarket(side model.SideType, pair string, size float64) (model.Order, error) {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.createOrderMarket(side, pair, size)
+	return p.createOrderMarket(side, pair, size, false)
 }
 
 func (p *PaperWallet) CreateOrderStop(pair string, size float64, limit float64) (model.Order, error) {
@@ -616,22 +629,28 @@ func (p *PaperWallet) CreateOrderStop(pair string, size float64, limit float64) 
 	}
 
 	order := model.Order{
-		ExchangeID: p.ID(),
-		CreatedAt:  p.lastCandle[pair].Time,
-		UpdatedAt:  p.lastCandle[pair].Time,
-		Pair:       pair,
-		Side:       model.SideTypeSell,
-		Type:       model.OrderTypeStopLossLimit,
-		Status:     model.OrderStatusTypeNew,
-		Price:      limit,
-		Stop:       &limit,
-		Quantity:   size,
+		ExchangeID:   p.ID(),
+		CreatedAt:    p.lastCandle[pair].Time,
+		UpdatedAt:    p.lastCandle[pair].Time,
+		Pair:         pair,
+		Side:         model.SideTypeSell,
+		PositionSide: model.PositionSideTypeBoth,
+		Type:         model.OrderTypeStopLossLimit,
+		Status:       model.OrderStatusTypeNew,
+		Price:        limit,
+		Stop:         &limit,
+		Quantity:     size,
 	}
 	p.orders = append(p.orders, order)
 	return order, nil
 }
 
-func (p *PaperWallet) createOrderMarket(side model.SideType, pair string, size float64) (model.Order, error) {
+func (p *PaperWallet) createOrderMarket(
+	side model.SideType,
+	pair string,
+	size float64,
+	closePosition bool,
+) (model.Order, error) {
 	if size == 0 {
 		return model.Order{}, ErrInvalidQuantity
 	}
@@ -645,18 +664,37 @@ func (p *PaperWallet) createOrderMarket(side model.SideType, pair string, size f
 		p.volume[pair] = 0
 	}
 
+	positionSide := model.PositionSideTypeBoth
+	if p.hedgeMode {
+		if closePosition {
+			if side == model.SideTypeBuy {
+				positionSide = model.PositionSideTypeShort
+			} else {
+				positionSide = model.PositionSideTypeLong
+			}
+		} else {
+			if side == model.SideTypeBuy {
+				positionSide = model.PositionSideTypeLong
+			} else {
+				positionSide = model.PositionSideTypeShort
+			}
+		}
+
+	}
+
 	p.volume[pair] += p.lastCandle[pair].Close * size
 
 	order := model.Order{
-		ExchangeID: p.ID(),
-		CreatedAt:  p.lastCandle[pair].Time,
-		UpdatedAt:  p.lastCandle[pair].Time,
-		Pair:       pair,
-		Side:       side,
-		Type:       model.OrderTypeMarket,
-		Status:     model.OrderStatusTypeFilled,
-		Price:      p.lastCandle[pair].Close,
-		Quantity:   size,
+		ExchangeID:   p.ID(),
+		CreatedAt:    p.lastCandle[pair].Time,
+		UpdatedAt:    p.lastCandle[pair].Time,
+		Pair:         pair,
+		Side:         side,
+		PositionSide: positionSide,
+		Type:         model.OrderTypeMarket,
+		Status:       model.OrderStatusTypeFilled,
+		Price:        p.lastCandle[pair].Close,
+		Quantity:     size,
 	}
 
 	p.orders = append(p.orders, order)
@@ -671,7 +709,7 @@ func (p *PaperWallet) CreateOrderMarketQuote(side model.SideType, pair string,
 
 	info := p.AssetsInfo(pair)
 	quantity := common.AmountToLotSize(info.StepSize, info.BaseAssetPrecision, quoteQuantity/p.lastCandle[pair].Close)
-	return p.createOrderMarket(side, pair, quantity)
+	return p.createOrderMarket(side, pair, quantity, false)
 }
 
 func (p *PaperWallet) Cancel(order model.Order) error {

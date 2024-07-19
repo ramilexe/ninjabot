@@ -317,11 +317,12 @@ func (b *BinanceFuture) CreateOrderLimit(side model.SideType, pair string,
 	}, nil
 }
 
-func (b *BinanceFuture) CloseOrderMarket(side model.SideType, pair string) (model.Order, error) {
+func (b *BinanceFuture) CloseOrderMarket(side model.SideType, pair string, quantity float64) (model.Order, error) {
 	service := b.client.NewCreateOrderService().
 		Symbol(pair).
 		Type(futures.OrderTypeMarket).
 		Side(futures.SideType(side)).
+		Quantity(b.formatQuantity(pair, quantity)).
 		ClosePosition(true).
 		NewOrderResponseType(futures.NewOrderRespTypeRESULT)
 
@@ -346,7 +347,7 @@ func (b *BinanceFuture) CloseOrderMarket(side model.SideType, pair string) (mode
 		return model.Order{}, err
 	}
 
-	quantity, err := strconv.ParseFloat(order.ExecutedQuantity, 64)
+	quantity, err = strconv.ParseFloat(order.ExecutedQuantity, 64)
 	if err != nil {
 		return model.Order{}, err
 	}

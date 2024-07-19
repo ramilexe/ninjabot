@@ -33,7 +33,7 @@ type Broker interface {
 	CreateOrderOCO(side model.SideType, pair string, size, price, stop, stopLimit float64) ([]model.Order, error)
 	CreateOrderLimit(side model.SideType, pair string, size float64, limit float64) (model.Order, error)
 	CreateOrderMarket(side model.SideType, pair string, size float64) (model.Order, error)
-	CloseOrderMarket(side model.SideType, pair string) (model.Order, error)
+	CloseOrderMarket(side model.SideType, pair string, size float64) (model.Order, error)
 	CreateOrderMarketQuote(side model.SideType, pair string, quote float64) (model.Order, error)
 	CreateOrderStop(pair string, quantity float64, limit float64) (model.Order, error)
 	Cancel(model.Order) error

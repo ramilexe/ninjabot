@@ -233,7 +233,7 @@ type Controller struct {
 	finish         chan bool
 	status         Status
 
-	position map[string]*Position
+	position map[string]map[model.PositionSideType]*Position
 }
 
 func NewController(ctx context.Context, exchange service.Exchange, storage storage.Storage,
@@ -248,7 +248,7 @@ func NewController(ctx context.Context, exchange service.Exchange, storage stora
 		Results:        make(map[string]*summary),
 		tickerInterval: time.Second,
 		finish:         make(chan bool),
-		position:       make(map[string]*Position),
+		position:       make(map[string]map[model.PositionSideType]*Position),
 	}
 }
 
@@ -262,9 +262,13 @@ func (c *Controller) OnCandle(candle model.Candle) {
 
 func (c *Controller) updatePosition(o *model.Order) {
 	// get filled orders before the current order
-	position, ok := c.position[o.Pair]
+	positions, ok := c.position[o.Pair]
 	if !ok {
-		c.position[o.Pair] = &Position{
+		c.position[o.Pair] = make(map[model.PositionSideType]*Position)
+	}
+	_, ok = c.position[o.Pair][o.PositionSide]
+	if !ok {
+		c.position[o.Pair][o.PositionSide] = &Position{
 			AvgPrice:  o.Price,
 			Quantity:  o.Quantity,
 			CreatedAt: o.CreatedAt,
@@ -272,6 +276,8 @@ func (c *Controller) updatePosition(o *model.Order) {
 		}
 		return
 	}
+
+	position := positions[o.PositionSide]
 
 	result, closed := position.Update(o)
 	if closed {
@@ -520,12 +526,12 @@ func (c *Controller) CreateOrderMarketQuote(side model.SideType, pair string, am
 	return order, err
 }
 
-func (c *Controller) CloseOrderMarket(side model.SideType, pair string) (model.Order, error) {
+func (c *Controller) CloseOrderMarket(side model.SideType, pair string, size float64) (model.Order, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	log.Infof("[ORDER] Creating MARKET %s order for %s", side, pair)
-	order, err := c.exchange.CloseOrderMarket(side, pair)
+	log.Infof("[ORDER] Creating CLOSE MARKET %s order for %s", side, pair)
+	order, err := c.exchange.CloseOrderMarket(side, pair, size)
 	if err != nil {
 		c.notifyError(err)
 		return model.Order{}, err
