@@ -491,12 +491,12 @@ func (p *PaperWallet) Account() (model.Account, error) {
 	}, nil
 }
 
-func (w *PaperWallet) Positions() ([]*futures.PositionRisk, error) {
+func (p *PaperWallet) Positions() ([]*futures.PositionRisk, error) {
 	panic("not implemented")
 }
 
-func (w *PaperWallet) PositionInfoByPair(pair string, positionSide string) (*futures.PositionRisk, error) {
-	panic("not implemeted")
+func (p *PaperWallet) PositionInfoByPair(_ string, _ string) (*futures.PositionRisk, error) {
+	panic("not implemented")
 }
 
 func (p *PaperWallet) Position(pair string) (asset, quote float64, err error) {

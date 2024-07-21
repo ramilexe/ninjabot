@@ -481,7 +481,7 @@ func (b *Binance) Positions() ([]*futures.PositionRisk, error) {
 	panic("not implemented")
 }
 
-func (b *Binance) PositionInfoByPair(pair string, positionSide string) (*futures.PositionRisk, error) {
+func (b *Binance) PositionInfoByPair(_ string, _ string) (*futures.PositionRisk, error) {
 	panic("not implemented")
 }
 

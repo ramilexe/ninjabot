@@ -531,7 +531,7 @@ func (b *BinanceFuture) PositionInfoByPair(pair string, positionSide string) (*f
 		}
 	}
 
-	return nil, errors.New(fmt.Sprintf("open position for %s not found", pair))
+	return nil, fmt.Errorf("open position for %s not found", pair)
 }
 
 func (b *BinanceFuture) Position(pair string) (asset, quote float64, err error) {
