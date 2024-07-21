@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/adshao/go-binance/v2/common"
+	"github.com/adshao/go-binance/v2/futures"
 
 	"github.com/rodrigo-brito/ninjabot/model"
 	"github.com/rodrigo-brito/ninjabot/service"
@@ -488,6 +489,14 @@ func (p *PaperWallet) Account() (model.Account, error) {
 	return model.Account{
 		Balances: balances,
 	}, nil
+}
+
+func (p *PaperWallet) Positions() ([]*futures.PositionRisk, error) {
+	panic("not implemented")
+}
+
+func (p *PaperWallet) PositionInfoByPair(_ string, _ string) (*futures.PositionRisk, error) {
+	panic("not implemented")
 }
 
 func (p *PaperWallet) Position(pair string) (asset, quote float64, err error) {

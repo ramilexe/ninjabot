@@ -482,6 +482,58 @@ func (b *BinanceFuture) Account() (model.Account, error) {
 	}, nil
 }
 
+func (b *BinanceFuture) Positions() ([]*futures.PositionRisk, error) {
+	res, err := b.client.NewGetPositionRiskService().
+		Do(b.ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	positions := make([]*futures.PositionRisk, 0)
+
+	for _, position := range res {
+		posAmount, err := strconv.ParseFloat(position.PositionAmt, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		if IsZero(posAmount) {
+			continue
+		}
+
+		positions = append(positions, position)
+	}
+
+	return positions, nil
+}
+
+func (b *BinanceFuture) PositionInfoByPair(pair string, positionSide string) (*futures.PositionRisk, error) {
+	res, err := b.client.NewGetPositionRiskService().
+		Symbol(pair).
+		Do(b.ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// one-way mode
+	if !b.HedgeMode {
+		if len(res) > 0 {
+			return res[0], nil
+		}
+	} else {
+		// hedge mode
+		for _, pos := range res {
+			if pos.PositionSide == positionSide {
+				return pos, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("open position for %s not found", pair)
+}
+
 func (b *BinanceFuture) Position(pair string) (asset, quote float64, err error) {
 	assetTick, quoteTick := SplitAssetQuote(pair)
 	acc, err := b.Account()

@@ -8,6 +8,7 @@ import (
 
 	"github.com/adshao/go-binance/v2"
 	"github.com/adshao/go-binance/v2/common"
+	"github.com/adshao/go-binance/v2/futures"
 	"github.com/jpillora/backoff"
 
 	"github.com/rodrigo-brito/ninjabot/model"
@@ -474,6 +475,14 @@ func (b *Binance) Account() (model.Account, error) {
 	return model.Account{
 		Balances: balances,
 	}, nil
+}
+
+func (b *Binance) Positions() ([]*futures.PositionRisk, error) {
+	panic("not implemented")
+}
+
+func (b *Binance) PositionInfoByPair(_ string, _ string) (*futures.PositionRisk, error) {
+	panic("not implemented")
 }
 
 func (b *Binance) Position(pair string) (asset, quote float64, err error) {
