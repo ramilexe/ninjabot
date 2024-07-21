@@ -6,6 +6,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/adshao/go-binance/v2/futures"
+
 	"github.com/rodrigo-brito/ninjabot/model"
 )
 
@@ -24,6 +26,8 @@ type Feeder interface {
 
 type Broker interface {
 	Account() (model.Account, error)
+	Positions() ([]*futures.PositionRisk, error)
+	PositionInfoByPair(pair string, positionSide string) (*futures.PositionRisk, error)
 	Position(pair string) (asset, quote float64, err error)
 	Order(pair string, id int64) (model.Order, error)
 	CreateOrderOCO(side model.SideType, pair string, size, price, stop, stopLimit float64) ([]model.Order, error)
